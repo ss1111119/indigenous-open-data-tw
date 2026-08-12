@@ -1,0 +1,23 @@
+# 原始下載檔不入版控（可由 scripts/ 重新抓取）
+data/raw/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 本機專屬設定（含 session 暫存路徑，換機器就失效）
+.claude/settings.local.json
+
+# 暫存
+*.tmp
+~$*
+.spectra/
+openspec/.vector-search.db*
