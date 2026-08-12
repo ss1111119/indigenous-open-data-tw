@@ -210,6 +210,26 @@ def analyse(body: bytes, kind: str, truncated: bool = False) -> dict:
     return out
 
 
+def encode_url(url: str) -> str:
+    """對網址中的非 ASCII 字元做百分比編碼。
+
+    實測：`https://www.vac.gov.tw/files/i2原住民退除役官兵人數按縣市及性別分.csv`
+    直接送進 urllib 會拋 UnicodeEncodeError，被誤記成端點失效。
+    """
+    parts = urllib.parse.urlsplit(url)
+    return urllib.parse.urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc.encode("idna").decode("ascii")
+            if any(ord(c) > 127 for c in parts.netloc)
+            else parts.netloc,
+            urllib.parse.quote(parts.path, safe="/%:@&=+$,~()!*'"),
+            urllib.parse.quote(parts.query, safe="/%:@&=+$,~()!*'?"),
+            parts.fragment,
+        )
+    )
+
+
 def probe(res: dict, nano: str) -> dict:
     url = res.get("url") or ""
     rec = {
@@ -229,7 +249,7 @@ def probe(res: dict, nano: str) -> dict:
         t0 = time.time()
         try:
             req = urllib.request.Request(
-                url, headers={"User-Agent": UA, "Accept": "*/*"}
+                encode_url(url), headers={"User-Agent": UA, "Accept": "*/*"}
             )
             with urllib.request.urlopen(req, timeout=45) as resp:
                 body = resp.read(READ_LIMIT)
@@ -289,6 +309,11 @@ def main() -> int:
     ap.add_argument("--per-dataset", type=int, default=2)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--limit", type=int, default=0, help="只跑前 N 個資料集（試跑用）")
+    ap.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="只重跑先前失敗的資源，用於區分暫時性故障與真正失效",
+    )
     args = ap.parse_args()
 
     OUTDIR.mkdir(parents=True, exist_ok=True)
@@ -302,12 +327,25 @@ def main() -> int:
 
     done: set[str] = set()
     if JSONL.exists():
+        # 以網址為鍵取最後一筆，重試會產生同網址多列，後寫的為準
+        latest: dict[str, dict] = {}
         for line in JSONL.read_text(encoding="utf-8").splitlines():
             try:
-                done.add(json.loads(line)["url"])
+                r = json.loads(line)
             except Exception:  # noqa: BLE001,S112
                 continue
-        print(f"續跑：已完成 {len(done)} 個資源網址", flush=True)
+            if r.get("url"):
+                latest[r["url"]] = r
+        if args.retry_failed:
+            done = {u for u, r in latest.items() if r.get("status") == "http_200"}
+            print(
+                f"重試模式：已成功 {len(done)} 個，"
+                f"待重試 {len(latest) - len(done)} 個",
+                flush=True,
+            )
+        else:
+            done = set(latest)
+            print(f"續跑：已完成 {len(done)} 個資源網址", flush=True)
 
     jobs: list[tuple[dict, str]] = []
     targets = sorted(catalog)

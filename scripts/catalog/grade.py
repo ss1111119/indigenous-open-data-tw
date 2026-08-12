@@ -70,12 +70,18 @@ def main() -> int:
         print(f"找不到 {JSONL}，請先執行 probe_resources.py", file=sys.stderr)
         return 1
 
-    by_ds: dict[str, list[dict]] = collections.defaultdict(list)
+    # 重試會讓同一網址出現多列，以網址為鍵取最後一筆，後寫的為準
+    latest: dict[str, dict] = {}
     for line in JSONL.read_text(encoding="utf-8").splitlines():
         try:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if rec.get("url"):
+            latest[rec["url"]] = rec
+
+    by_ds: dict[str, list[dict]] = collections.defaultdict(list)
+    for rec in latest.values():
         by_ds[rec.get("nanoId")].append(rec)
 
     allres = {
