@@ -19,6 +19,7 @@ import collections
 import csv
 import json
 import pathlib
+import re
 import sys
 
 JSONL = pathlib.Path("data/raw/catalog/probe-results.jsonl")
@@ -28,10 +29,26 @@ OUT = pathlib.Path("catalog/odportal-763-graded.csv")
 REPORT = pathlib.Path("catalog/品質分級報告.md")
 
 # 由好到壞；資料集取其資源中最好的一級
-ORDER = ["真資料", "二進位", "連結殼", "空資料", "HTML殼", "失效", "無資源"]
+ORDER = [
+    "真資料",
+    "二進位",
+    "連結殼",
+    "空資料",
+    "HTML殼",
+    "網址無效",
+    "失效",
+    "無資源",
+]
 
 
 def grade_resource(rec: dict) -> str:
+    # 索引裡的網址本身壞掉（前端的 undefined 漏進儲存值、或參數為空），
+    # 與「端點死亡」是兩件事：資料可能好端端的，是 ODPortal 的連結壞了。
+    # 不分開會冤枉資料提供方——臺北市 39 筆全部屬此類。
+    url = rec.get("url") or ""
+    if "undefined" in url or re.search(r"[?&](rid|id)=(&|$)", url):
+        return "網址無效"
+
     status = rec.get("status") or ""
     if status.startswith("http_") and status != "http_200":
         return "失效"
@@ -80,9 +97,10 @@ def main() -> int:
         if rec.get("url"):
             latest[rec["url"]] = rec
 
-    by_ds: dict[str, list[dict]] = collections.defaultdict(list)
-    for rec in latest.values():
-        by_ds[rec.get("nanoId")].append(rec)
+    # 探測端以網址去重（同一網址不重複打），但不同資料集會共用資源網址。
+    # 因此分級一律以資料集自己的資源網址回查結果，不依賴探測時的 nanoId 歸屬，
+    # 否則共用網址的那一方會被誤判為「未探測」。
+    by_url = latest
 
     allres = {
         d["nanoId"]: d for d in json.loads(RESOURCES.read_text(encoding="utf-8"))
@@ -91,10 +109,29 @@ def main() -> int:
     with CATALOG.open(encoding="utf-8-sig", newline="") as fh:
         rows = list(csv.DictReader(fh))
 
+    # 網址 → 使用它的資料集數，用於標記重複項
+    url_owners: dict[str, set[str]] = collections.defaultdict(set)
+    for row in rows:
+        nano = (row.get("ODPortal") or "").rsplit("/", 1)[-1]
+        for r in allres.get(nano, {}).get("resources") or []:
+            if r.get("url"):
+                url_owners[r["url"]].add(nano)
+
     out_rows = []
     for row in rows:
         nano = (row.get("ODPortal") or "").rsplit("/", 1)[-1]
-        probes = by_ds.get(nano, [])
+        res_urls = [
+            r["url"] for r in allres.get(nano, {}).get("resources") or [] if r.get("url")
+        ]
+        probes = [by_url[u] for u in res_urls if u in by_url]
+        shared = sorted(
+            {
+                other
+                for u in res_urls
+                for other in url_owners.get(u, set())
+                if other != nano
+            }
+        )
         n_res = len(allres.get(nano, {}).get("resources") or [])
         if not probes:
             grade = "無資源" if n_res == 0 else "未探測"
@@ -111,6 +148,7 @@ def main() -> int:
                 "分級": grade,
                 "資源總數": n_res,
                 "已探測資源": len(probes),
+                "與其他資料集共用資源": ";".join(shared),
                 "最大記錄數": best_rec.get("records", ""),
                 "檔案類欄位": ";".join(best_rec.get("file_keys") or []),
                 "實際型態": ";".join(
@@ -152,7 +190,20 @@ def main() -> int:
         "# 763 筆開放資料集品質分級",
         "",
         "以實際打端點取回的內容判定，不採信 metadata 的格式欄。",
-        f"探測樣本：每個資料集最多 2 個代表性資源（頭尾各一）。",
+        "探測樣本：每個資料集最多 2 個代表性資源（頭尾各一）。",
+        "失敗項目一律重試過，以區分暫時性故障與真正失效。",
+        "",
+        "| 分級 | 含義 |",
+        "|---|---|",
+        "| 真資料 | 端點回可解析內容且有記錄，可直接使用 |",
+        "| 二進位 | 回傳 PDF／ZIP／XLS 本體，需另行解析才知內容 |",
+        "| 連結殼 | 有記錄，但欄位是檔案連結，真正的數字在附件裡 |",
+        "| 空資料 | 可解析但 0 筆記錄 |",
+        "| HTML殼 | 宣稱資料格式卻回 HTML（SPA、錯誤頁或登入頁） |",
+        "| 網址無效 | **ODPortal 索引的網址本身壞掉**（含字面 `undefined` 或參數為空）。"
+        "資料本身可能是好的，問題在索引，不是提供機關 |",
+        "| 失效 | 網址正常但連線失敗或伺服器錯誤，重試後仍失敗 |",
+        "| 無資源 | 清單上沒有任何資源網址 |",
         "",
         "| 分級 | 筆數 | 佔比 |",
         "|---|---:|---:|",
@@ -162,6 +213,26 @@ def main() -> int:
         if tally.get(g):
             lines.append(f"| {g} | {tally[g]} | {tally[g]/total:.1%} |")
     lines += ["", f"合計 {total} 筆。", ""]
+
+    dup = [r for r in out_rows if r["與其他資料集共用資源"]]
+    lines += [
+        "## 重複項",
+        "",
+        f"**{len(dup)} 筆資料集與其他資料集共用完全相同的資源網址**"
+        f"（佔 {len(dup)/total:.1%}），即同一份資料在清單上出現多次。",
+        "",
+        "這是探測時發現的：以網址去重後，這些資料集的資源早已被打過。",
+        "去重時可直接依「與其他資料集共用資源」欄合併。",
+        "",
+    ]
+    if dup:
+        lines += ["| 資料集 | 共用對象數 |", "|---|---:|"]
+        for r in dup[:12]:
+            n = len(r["與其他資料集共用資源"].split(";"))
+            lines.append(f"| {r['名稱'][:44]} | {n} |")
+        if len(dup) > 12:
+            lines.append(f"| …另 {len(dup)-12} 筆 | |")
+        lines.append("")
 
     if problems:
         lines += ["## ⚠️ 驗證未通過", ""] + [f"- {p}" for p in problems] + [""]
