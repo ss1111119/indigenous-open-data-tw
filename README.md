@@ -114,5 +114,18 @@ python -m pytest tests/                  # 23 項不變量測試，約 12 秒
 
 ## 相關專案
 
-- `moe-indigenous-stats` — 大專原住民學生統計
-- `indigenous-constitution-tw` — 原住民族憲政代表性視覺化
+- [`moe-indigenous-stats`](https://github.com/ss1111119/moe-indigenous-stats) — 大專原住民學生統計
+- [`indigenous-constitution-tw`](https://github.com/ss1111119/indigenous-constitution-tw) — 原住民族憲政代表性視覺化
+
+## 授權
+
+程式碼採 MIT，見 [LICENSE](LICENSE)。
+
+`data/processed/` 的衍生資料改作自公開統計資料。原始資料依
+[政府資料開放平臺開放資料授權條款－第 1 版](https://data.gov.tw/license) 授權，
+可自由使用、改作、再散布，**惟須標示資料來源**：
+
+- `data/processed/moe-c-series-long.csv` → **教育部統計處**（《原住民學生概況統計》）
+- `catalog/` 的清單為各機關資料集的 metadata 彙整，來源機關逐筆記於檔案內欄位
+
+本專案不代表任何族群或機構發言，也不是原始資料的提供者。數字有疑義請回頭查證來源機關的原始發布。
