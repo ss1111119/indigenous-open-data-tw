@@ -58,4 +58,7 @@
     - catalog/品質分級報告.md
     - docs/來源盤點.md
   - Removed: （無）
-- Dependencies: 既有環境已具備 Python 3.13.9、pandas 3.0.0，本變更不新增第三方套件；輸入為既有的 catalog/odportal-763-graded.csv 與 data/raw/catalog/odportal-resources.json
+- Dependencies: 既有環境已具備 Python 3.13.9、pandas 3.0.0，本變更不新增第三方套件
+  - Input:
+    - catalog/odportal-763-graded.csv
+    - data/raw/catalog/odportal-resources.json
