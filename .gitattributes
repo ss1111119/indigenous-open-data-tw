@@ -1,0 +1,6 @@
+# 一律以 LF 存放與取出。
+#
+# 這不只是風格問題：`scripts/moe/build_long_table.py` 以 LF 寫出長表，若 checkout
+# 時被轉成 CRLF，clone 下來重跑建置會立刻顯示檔案被修改——長表「重跑產生位元組
+# 相同的輸出」這個性質就只在原作者機器上成立。
+* text=auto eol=lf
