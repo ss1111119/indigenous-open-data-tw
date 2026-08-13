@@ -31,7 +31,7 @@ Each row SHALL carry the columns `期別`, `縣市`, `鄉鎮市區`, `身分別`
 
 ### Requirement: Normalize people names across the source revision
 
-At period 11412 the source renamed its column prefix and changed the romanisation of three peoples to their own endonyms. A build keyed to either spelling would silently read empty values for those peoples on the other side of the revision.
+At period 11411 the source renamed its column prefix and changed the romanisation of three peoples to their own endonyms. A build keyed to either spelling would silently read empty values for those peoples on the other side of the revision.
 
 The system SHALL record people names in Chinese as the canonical value, and the registry SHALL map every source spelling to that canonical value. A source column the registry does not describe SHALL be a blocking error, because it may indicate a further revision.
 
@@ -43,7 +43,7 @@ The system SHALL record people names in Chinese as the canonical value, and the 
 
 ##### Example: spellings that map to one canonical value
 
-| Chinese name | Spelling before 11412 | Spelling from 11412 |
+| Chinese name | Spelling before 11411 | Spelling from 11411 |
 | ------------ | --------------------- | ------------------- |
 | 鄒族 | `tsou` | `cou` |
 | 卑南族 | `puyuma` | `pinuyumayan` |
@@ -57,7 +57,7 @@ The system SHALL record people names in Chinese as the canonical value, and the 
 
 ### Requirement: Emit plains-plain rows only for periods that carry them
 
-Periods before 11412 carry no plains-plain columns at all, whereas periods from 11412 carry them holding zero. The two are different statements: the earlier periods do not report the dimension, while the later ones report it as zero.
+Periods before 11411 carry no plains-plain columns at all, whereas periods from 11411 carry them holding zero. The two are different statements: the earlier periods do not report the dimension, while the later ones report it as zero.
 
 Filling zero for the earlier periods would assert something the source never said, and the distinction would not be recoverable from the long table.
 
@@ -65,7 +65,7 @@ The system SHALL emit rows whose `身分別` is the plains-plain value only for 
 
 #### Scenario: A period predating the revision
 
-- **WHEN** a period before 11412 is built
+- **WHEN** a period before 11411 is built
 - **THEN** no row carries the plains-plain status value
 
 #### Scenario: A period carrying the columns at zero
@@ -76,7 +76,7 @@ The system SHALL emit rows whose `身分別` is the plains-plain value only for 
 
 #### Scenario: Plains-plain columns appear earlier than declared
 
-- **WHEN** a period before 11412 is found to carry plains-plain columns
+- **WHEN** a period before 11411 is found to carry plains-plain columns
 - **THEN** the system reports the period and stops, because this contradicts the registry
 
 ##### Example: the boundary measured across sampled periods
@@ -84,7 +84,7 @@ The system SHALL emit rows whose `身分別` is the plains-plain value only for 
 | Period | Column count | Plains-plain columns | Plains-plain rows emitted |
 | ------ | -----------: | -------------------- | ------------------------- |
 | 11401 | 115 | absent | none |
-| 11412 | 162 | present, holding zero | emitted with `人數` 0 |
+| 11411 | 162 | present, holding zero | emitted with `人數` 0 |
 | 11507 | 162 | present, holding zero | emitted with `人數` 0 |
 
 ### Requirement: Exclude aggregate columns from the long table
@@ -112,10 +112,25 @@ Because the same population is sliced by people and by status, relationships bet
 - **WHEN** a period is totalled by `族別` and separately by `身分別`
 - **THEN** the two totals are equal
 
+#### Scenario: A people appears only under the statuses that carry it
+
+- **WHEN** the long table is grouped by `族別` and `身分別`
+- **THEN** a people unique to the plains-plain status appears under no other status
+- **AND** a people carried by the plains and mountain statuses appears under both
+
+##### Example: people lists per status
+
+| Status | Peoples carried |
+| ------ | --------------: |
+| 平地原住民 | 17 |
+| 山地原住民 | 17 |
+| 平埔原住民 | 12 |
+| union across statuses | 27 |
+
 #### Scenario: People labels do not split across the revision
 
 - **WHEN** the long table is grouped by `族別`
-- **THEN** the label set for periods before 11412 equals the label set for periods from 11412, excluding the plains-plain peoples
+- **THEN** the label set for periods before 11411 equals the label set for periods from 11411, excluding the plains-plain peoples
 
 #### Scenario: Administrative names use the orthodox form
 

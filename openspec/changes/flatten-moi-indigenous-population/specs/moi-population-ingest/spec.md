@@ -78,23 +78,36 @@ Detail is discarded, so verification cannot be repeated later. Verifying after a
 
 The system SHALL evaluate the source's own aggregate identities against every village row before aggregating, and SHALL stop on any mismatch.
 
-#### Scenario: All four identities hold
+The per-people column list differs by status and SHALL be taken from the registry per status rather than shared: the plains and mountain statuses each carry 17 peoples, the plains-plain status carries 12, and the top level carries their union of 27.
+
+#### Scenario: All seven identities hold
 
 - **WHEN** a period's village rows are verified
 - **THEN** each row's total equals its male plus female counts
-- **AND** each row's total equals the sum of its per-people counts
 - **AND** each row's total equals the sum of its status subtotals
-- **AND** each status subtotal equals the sum of its per-people counts
+- **AND** each row's total equals the sum of its per-people counts across the union of peoples
+- **AND** each status subtotal equals the sum of the per-people counts of that status's own people list
+- **AND** each people's top-level count equals the sum of that people's counts across the statuses that carry it
 
 ##### Example: identities verified at period 11507
 
 | Identity | Result |
 | -------- | ------ |
-| total equals male plus female | holds for all 7,781 rows |
-| total equals the 17 per-people columns | holds for all 7,781 rows |
-| total equals plains plus mountain plus plains-plain | holds for all 7,781 rows |
-| each status subtotal equals its per-people columns | holds for all 7,781 rows |
+| A — total equals male plus female | holds for all 7,781 rows |
+| B — total equals plains plus mountain plus plains-plain subtotals | holds for all 7,781 rows |
+| C — total equals the union of 27 per-people columns | holds for all 7,781 rows |
+| D — plains subtotal equals its 17 per-people columns | holds for all 7,781 rows |
+| E — mountain subtotal equals its 17 per-people columns | holds for all 7,781 rows |
+| F — plains-plain subtotal equals its 12 per-people columns | holds for all 7,781 rows |
+| G — each people's top level equals its sum across statuses | holds for all 7,781 rows |
 | national total 638,466 equals 298,327 plus 340,139 plus 0 | exact |
+
+##### Example: why identity C counts the union rather than 17
+
+- **GIVEN** the top level carries 27 peoples while plains and mountain carry 17 each
+- **AND** the 10 peoples unique to the plains-plain status currently hold zero
+- **WHEN** the total is compared against only the 17 shared peoples
+- **THEN** the comparison holds today but SHALL fail once plains-plain counts become non-zero, which is why the union is the checked quantity
 
 #### Scenario: An identity fails
 
